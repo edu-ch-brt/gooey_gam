@@ -70,7 +70,7 @@ pub fn two_years_ago_ymd() -> String {
 /// For Active courses, unless `show_all_active` is true, applies GAM
 /// `timefilter updatetime start <today-2y>` so the UI list is smaller.
 /// Note: GAM may still enumerate all matching-state courses server-side then
-/// filter locally — the filter mainly shrinks the list returned to the UI.
+/// filter locally - the filter mainly shrinks the list returned to the UI.
 pub fn list_courses(
     gam_path: &Path,
     state: &str,
