@@ -203,3 +203,25 @@ dialog input {
 
 #results-list li.ok { color: #166534; }
 #results-list li.fail { color: #991b1b; }
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: #fff;
+  border-top: 1px solid #e8eaed;
+}
+
+#page-info {
+  min-width: 180px;
+  text-align: center;
+  color: #475569;
+  font-size: 13px;
+}
+
+.teachers-pending {
+  color: #94a3b8;
+  font-style: italic;
+}

@@ -1,5 +1,5 @@
 use crate::config::{self, Settings};
-use crate::courses::{parse_courses_json, ActionResult, Course};
+use crate::courses::{parse_courses_json, ActionResult, Course, CourseTeachers};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -54,22 +54,89 @@ fn require_success(out: &GamOutput, context: &str) -> Result<(), String> {
     Err(format!("{context} failed (exit {}): {detail}", out.status))
 }
 
+/// Fast list: no `show teachers` (teachers filled later per visible page).
 pub fn list_courses(gam_path: &Path, state: &str) -> Result<Vec<Course>, String> {
     let state = normalize_state(state)?;
     let out = run_gam(
         gam_path,
-        &[
-            "print",
-            "courses",
-            "states",
-            state,
-            "show",
-            "teachers",
-            "formatjson",
-        ],
+        &["print", "courses", "states", state, "formatjson"],
     )?;
     require_success(&out, &format!("List {state} courses"))?;
     parse_courses_json(&out.stdout)
+}
+
+/// Fetch teachers for specific course IDs.
+/// Prefers one batched GAM call:
+/// `gam print courses course <id1> course <id2> ... show teachers formatjson`
+/// Falls back to one call per id if the batch fails.
+pub fn fetch_course_teachers(
+    gam_path: &Path,
+    ids: &[String],
+) -> Result<Vec<CourseTeachers>, String> {
+    let mut unique: Vec<String> = Vec::new();
+    for id in ids {
+        let id = id.trim();
+        if id.is_empty() {
+            continue;
+        }
+        if !unique.iter().any(|u| u == id) {
+            unique.push(id.to_string());
+        }
+    }
+    if unique.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    match fetch_teachers_batch(gam_path, &unique) {
+        Ok(rows) => Ok(rows),
+        Err(batch_err) => {
+            // Fall back to per-course so a single bad id does not block the page.
+            let mut rows = Vec::new();
+            let mut errors = Vec::new();
+            for id in &unique {
+                match fetch_teachers_batch(gam_path, &[id.clone()]) {
+                    Ok(mut one) => rows.append(&mut one),
+                    Err(e) => errors.push(format!("{id}: {e}")),
+                }
+            }
+            if rows.is_empty() && !errors.is_empty() {
+                return Err(format!(
+                    "Fetch teachers failed (batch: {batch_err}; per-course: {})",
+                    errors.join("; ")
+                ));
+            }
+            Ok(rows)
+        }
+    }
+}
+
+fn fetch_teachers_batch(
+    gam_path: &Path,
+    ids: &[String],
+) -> Result<Vec<CourseTeachers>, String> {
+    let mut args: Vec<String> = vec!["print".into(), "courses".into()];
+    for id in ids {
+        args.push("course".into());
+        args.push(id.clone());
+    }
+    args.push("show".into());
+    args.push("teachers".into());
+    args.push("formatjson".into());
+
+    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    let out = run_gam(gam_path, &arg_refs)?;
+    require_success(
+        &out,
+        &format!("Fetch teachers for {} course(s)", ids.len()),
+    )?;
+    let courses = parse_courses_json(&out.stdout)?;
+    Ok(courses
+        .into_iter()
+        .map(|c| CourseTeachers {
+            id: c.id,
+            teachers: c.teachers,
+        })
+        .collect())
 }
 
 pub fn set_course_state(gam_path: &Path, id: &str, state: &str) -> Result<(), String> {

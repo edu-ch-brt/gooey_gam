@@ -2,13 +2,19 @@ mod config;
 mod courses;
 mod gam;
 
-use courses::{ActionResult, Course};
+use courses::{ActionResult, Course, CourseTeachers};
 use config::Settings;
 
 #[tauri::command]
 fn list_courses(state: String) -> Result<Vec<Course>, String> {
     let path = gam::gam_path_from_settings();
     gam::list_courses(&path, &state)
+}
+
+#[tauri::command]
+fn fetch_course_teachers(ids: Vec<String>) -> Result<Vec<CourseTeachers>, String> {
+    let path = gam::gam_path_from_settings();
+    gam::fetch_course_teachers(&path, &ids)
 }
 
 #[tauri::command]
@@ -62,6 +68,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             list_courses,
+            fetch_course_teachers,
             archive_courses,
             activate_courses,
             add_teacher,

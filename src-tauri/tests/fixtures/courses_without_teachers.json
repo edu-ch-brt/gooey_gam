@@ -1,0 +1,14 @@
+[
+  {
+    "id": "111",
+    "name": "Fast List Course",
+    "enrollmentCode": "join01",
+    "courseState": "ACTIVE"
+  },
+  {
+    "id": "222",
+    "name": "Archived Fast",
+    "enrollmentCode": "join02",
+    "courseState": "ARCHIVED"
+  }
+]

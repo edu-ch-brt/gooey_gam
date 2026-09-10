@@ -14,6 +14,12 @@ pub struct Course {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CourseTeachers {
+    pub id: String,
+    pub teachers: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ActionResult {
     pub id: String,
     pub ok: bool,
@@ -293,6 +299,35 @@ mod tests {
         assert_eq!(courses[0].state, "ACTIVE");
         assert_eq!(courses[1].teachers, vec!["carol@example.com"]);
         assert_eq!(courses[2].teachers, vec!["dave@example.com", "eve@example.com"]);
+    }
+
+    #[test]
+    fn parses_fixture_without_teachers() {
+        let raw = include_str!("fixtures/courses_without_teachers.json");
+        let courses = parse_courses_json(raw).expect("parse");
+        assert_eq!(courses.len(), 2);
+        assert_eq!(courses[0].id, "111");
+        assert_eq!(courses[0].name, "Fast List Course");
+        assert_eq!(courses[0].enrollment_code, "join01");
+        assert!(courses[0].teachers.is_empty());
+        assert_eq!(courses[0].state, "ACTIVE");
+        assert_eq!(courses[1].id, "222");
+        assert_eq!(courses[1].state, "ARCHIVED");
+        assert!(courses[1].teachers.is_empty());
+    }
+
+    #[test]
+    fn parses_gam7_csv_without_teachers_column() {
+        let raw = include_str!("fixtures/courses_gam7_csv_no_teachers.txt");
+        let courses = parse_courses_json(raw).expect("parse csv no teachers");
+        assert_eq!(courses.len(), 2);
+        assert_eq!(courses[0].id, "884230888941");
+        assert_eq!(courses[0].name, "IT BTEC AAQ 13IV-B");
+        assert_eq!(courses[0].enrollment_code, "lspgv4uu");
+        assert!(courses[0].teachers.is_empty());
+        assert_eq!(courses[0].state, "ACTIVE");
+        assert_eq!(courses[1].id, "555");
+        assert!(courses[1].teachers.is_empty());
     }
 
     #[test]
