@@ -219,10 +219,10 @@ function renderTable() {
     nameBtn.className = "course-name-link";
     nameBtn.textContent = course.name;
     nameBtn.title = "Open class details";
-    nameBtn.disabled = loading;
     nameBtn.addEventListener("click", (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
+      if (detailLoading) return;
       void openCourseDetail(course.id);
     });
     tdName.appendChild(nameBtn);
