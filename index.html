@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GAM Classroom</title>
+    <script type="module" src="/src/main.ts" defer></script>
+  </head>
+  <body>
+    <div id="app">
+      <header class="toolbar">
+        <div class="toggle" role="group" aria-label="Course state">
+          <button type="button" id="btn-active" class="toggle-btn active" data-state="active">Active</button>
+          <button type="button" id="btn-archived" class="toggle-btn" data-state="archived">Archived</button>
+        </div>
+        <input type="search" id="search" placeholder="Search by name…" autocomplete="off" />
+        <button type="button" id="btn-refresh">Refresh</button>
+        <button type="button" id="btn-archive" disabled>Archive</button>
+        <button type="button" id="btn-activate" disabled>Activate</button>
+        <button type="button" id="btn-add-teacher" disabled>Add teacher…</button>
+        <button type="button" id="btn-settings" class="secondary">Settings</button>
+      </header>
+
+      <div class="table-wrap">
+        <table id="courses-table">
+          <thead>
+            <tr>
+              <th class="col-check"><input type="checkbox" id="select-all" title="Select all visible" /></th>
+              <th>Name</th>
+              <th>Teachers</th>
+              <th>Class ID</th>
+              <th>Join code</th>
+            </tr>
+          </thead>
+          <tbody id="courses-body"></tbody>
+        </table>
+        <p id="empty-msg" class="empty hidden">No courses to show.</p>
+      </div>
+
+      <footer class="statusbar">
+        <span id="status-text">Ready</span>
+        <span id="selection-text"></span>
+      </footer>
+    </div>
+
+    <dialog id="settings-dialog">
+      <form method="dialog" id="settings-form">
+        <h2>Settings</h2>
+        <label>
+          Path to gam.exe
+          <input type="text" id="gam-path" spellcheck="false" />
+        </label>
+        <p class="hint">Default: C:\GAM7\gam.exe</p>
+        <div class="dialog-actions">
+          <button type="submit" value="cancel" class="secondary">Cancel</button>
+          <button type="submit" value="save" id="settings-save">Save</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="teacher-dialog">
+      <form method="dialog" id="teacher-form">
+        <h2>Add teacher</h2>
+        <label>
+          Google email
+          <input type="email" id="teacher-email" placeholder="teacher@school.edu" required />
+        </label>
+        <p class="hint" id="teacher-hint"></p>
+        <div class="dialog-actions">
+          <button type="submit" value="cancel" class="secondary">Cancel</button>
+          <button type="submit" value="ok" id="teacher-ok">Add</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="confirm-dialog">
+      <form method="dialog" id="confirm-form">
+        <h2 id="confirm-title">Confirm</h2>
+        <p id="confirm-body"></p>
+        <div class="dialog-actions">
+          <button type="submit" value="cancel" class="secondary">Cancel</button>
+          <button type="submit" value="ok" id="confirm-ok">OK</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="results-dialog">
+      <form method="dialog">
+        <h2>Results</h2>
+        <ul id="results-list"></ul>
+        <div class="dialog-actions">
+          <button type="submit" value="ok">Close</button>
+        </div>
+      </form>
+    </dialog>
+  </body>
+</html>

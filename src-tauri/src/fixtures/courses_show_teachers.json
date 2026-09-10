@@ -1,0 +1,49 @@
+[
+  {
+    "id": "12345678901",
+    "name": "Year 7 Maths",
+    "section": "A",
+    "descriptionHeading": "Maths",
+    "room": "B12",
+    "ownerId": "111",
+    "enrollmentCode": "abc123",
+    "courseState": "ACTIVE",
+    "teachers": [
+      {
+        "userId": "u1",
+        "profile": {
+          "id": "u1",
+          "name": { "fullName": "Alice Teacher" },
+          "emailAddress": "alice@example.com"
+        }
+      },
+      {
+        "userId": "u2",
+        "profile": {
+          "id": "u2",
+          "name": { "fullName": "Bob Teacher" },
+          "emailAddress": "bob@example.com"
+        }
+      }
+    ]
+  },
+  {
+    "id": "98765432109",
+    "name": "Archived History",
+    "enrollmentCode": "xyz789",
+    "courseState": "ARCHIVED",
+    "teachers": [
+      {
+        "emailAddress": "carol@example.com",
+        "fullName": "Carol Teacher"
+      }
+    ]
+  },
+  {
+    "id": "555",
+    "name": "Flat Teachers Field",
+    "enrollmentCode": "flat01",
+    "courseState": "ACTIVE",
+    "teachers": "dave@example.com, eve@example.com"
+  }
+]
