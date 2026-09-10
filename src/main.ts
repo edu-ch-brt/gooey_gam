@@ -28,6 +28,7 @@ interface Settings {
 }
 
 const PAGE_SIZE = 15;
+let searchQuery = "";
 
 let viewState: CourseState = "active";
 let courses: Course[] = [];
@@ -69,7 +70,7 @@ const el = {
 };
 
 function filteredCourses(): Course[] {
-  const q = el.search().value.trim().toLowerCase();
+  const q = searchQuery;
   if (!q) return courses;
   return courses.filter((c) => c.name.toLowerCase().includes(q));
 }
@@ -425,9 +426,20 @@ window.addEventListener("DOMContentLoaded", () => {
   el.btnActivate().addEventListener("click", () => void runActivate());
   el.btnAddTeacher().addEventListener("click", () => void runAddTeacher());
   el.btnSettings().addEventListener("click", () => void openSettings());
-  el.search().addEventListener("input", () => {
+  const applySearch = () => {
+    searchQuery = el.search().value.trim().toLowerCase();
     page = 0;
     onFilterOrPageChange();
+  };
+  el.search().addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter") {
+      ev.preventDefault();
+      applySearch();
+    }
+  });
+  // Fires on Enter and when the clear (x) control is used on type=search.
+  el.search().addEventListener("search", () => {
+    applySearch();
   });
   el.btnPrev().addEventListener("click", () => {
     if (page > 0) {
