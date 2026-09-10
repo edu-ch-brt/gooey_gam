@@ -260,7 +260,13 @@ dialog input {
 
 .detail-dialog form {
   max-height: calc(100vh - 2rem);
+  height: min(90vh, 720px);
   overflow: hidden;
+  min-height: 0;
+}
+
+.detail-header {
+  flex: 0 0 auto;
 }
 
 .detail-header h2 {
@@ -278,8 +284,8 @@ dialog input {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
-  min-height: 220px;
-  max-height: min(55vh, 480px);
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -293,6 +299,7 @@ dialog input {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  height: 100%;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   background: #f8fafc;
@@ -305,6 +312,7 @@ dialog input {
   font-size: 0.95rem;
   border-bottom: 1px solid #e2e8f0;
   background: #fff;
+  flex: 0 0 auto;
 }
 
 .roster-section h3 .muted {
@@ -316,16 +324,19 @@ dialog input {
 .roster-list {
   list-style: none;
   margin: 0;
-  padding: 6px;
-  overflow: auto;
-  flex: 1;
+  padding: 4px 6px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  overscroll-behavior: contain;
 }
 
 .roster-list li {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  padding: 6px 8px;
+  padding: 5px 6px;
   border-radius: 6px;
 }
 
@@ -337,24 +348,35 @@ dialog input {
   background: #fff7ed;
 }
 
+/* Override dialog input { width: 100% } so checkboxes don't stretch */
+.detail-dialog .roster-check,
 .roster-list .roster-check {
-  margin-top: 2px;
+  width: auto;
+  min-width: 1rem;
+  max-width: 1rem;
+  flex: 0 0 auto;
+  margin: 3px 0 0;
+  accent-color: #2563eb;
 }
 
 .roster-list .roster-label {
   display: flex;
   flex-direction: column;
   gap: 1px;
+  flex: 1 1 auto;
   min-width: 0;
 }
 
 .roster-list .roster-email {
-  word-break: break-all;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.25;
 }
 
 .roster-list .roster-name {
   color: #64748b;
   font-size: 12px;
+  line-height: 1.2;
 }
 
 .roster-badge {
@@ -366,6 +388,8 @@ dialog input {
   color: #7c2d12;
   font-size: 11px;
   font-weight: 600;
+  white-space: nowrap;
+  vertical-align: middle;
 }
 
 .detail-actions {
@@ -374,6 +398,11 @@ dialog input {
   gap: 8px;
   align-items: center;
   margin-top: 0.35rem;
+  flex: 0 0 auto;
+}
+
+#detail-status {
+  flex: 0 0 auto;
 }
 
 .course-name-link {
