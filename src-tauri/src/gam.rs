@@ -54,14 +54,47 @@ fn require_success(out: &GamOutput, context: &str) -> Result<(), String> {
     Err(format!("{context} failed (exit {}): {detail}", out.status))
 }
 
+/// Calendar date two years before today (local), as `YYYY-MM-dd` for GAM timefilter.
+pub fn two_years_ago_ymd() -> String {
+    use chrono::{Datelike, Local};
+    let today = Local::now().date_naive();
+    let y = today.year() - 2;
+    let start = today
+        .with_year(y)
+        .unwrap_or_else(|| today - chrono::Duration::days(365 * 2));
+    start.format("%Y-%m-%d").to_string()
+}
+
 /// Fast list: no `show teachers` (teachers filled later per visible page).
-pub fn list_courses(gam_path: &Path, state: &str) -> Result<Vec<Course>, String> {
+///
+/// For Active courses, unless `show_all_active` is true, applies GAM
+/// `timefilter updatetime start <today-2y>` so the UI list is smaller.
+/// Note: GAM may still enumerate all matching-state courses server-side then
+/// filter locally — the filter mainly shrinks the list returned to the UI.
+pub fn list_courses(
+    gam_path: &Path,
+    state: &str,
+    show_all_active: bool,
+) -> Result<Vec<Course>, String> {
     let state = normalize_state(state)?;
-    let out = run_gam(
-        gam_path,
-        &["print", "courses", "states", state, "formatjson"],
-    )?;
-    require_success(&out, &format!("List {state} courses"))?;
+    let start_date = two_years_ago_ymd();
+    let mut args: Vec<&str> = vec!["print", "courses", "states", state];
+    if state == "active" && !show_all_active {
+        args.extend_from_slice(&[
+            "timefilter",
+            "updatetime",
+            "start",
+            start_date.as_str(),
+        ]);
+    }
+    args.push("formatjson");
+    let out = run_gam(gam_path, &args)?;
+    let ctx = if state == "active" && !show_all_active {
+        format!("List active courses updated since {start_date}")
+    } else {
+        format!("List {state} courses")
+    };
+    require_success(&out, &ctx)?;
     parse_courses_json(&out.stdout)
 }
 
@@ -206,4 +239,19 @@ pub fn gam_path_from_settings() -> PathBuf {
 
 pub fn current_settings() -> Settings {
     config::load_settings()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::two_years_ago_ymd;
+
+    #[test]
+    fn two_years_ago_ymd_format() {
+        let s = two_years_ago_ymd();
+        assert_eq!(s.len(), 10, "{s}");
+        assert_eq!(&s[4..5], "-");
+        assert_eq!(&s[7..8], "-");
+        let y: i32 = s[0..4].parse().unwrap();
+        assert!(y >= 2020);
+    }
 }

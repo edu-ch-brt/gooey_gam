@@ -15,11 +15,17 @@
           <button type="button" id="btn-archived" class="toggle-btn" data-state="archived">Archived</button>
         </div>
         <input type="search" id="search" placeholder="Search by name (press Enter)" autocomplete="off" />
+        <label id="show-all-wrap" class="toolbar-check" title="Default Active list is courses with Classroom updateTime in the last 2 years (not last student access). Check to load every active course.">
+          <input type="checkbox" id="show-all-active" />
+          Show all active courses
+        </label>
         <button type="button" id="btn-refresh">Refresh</button>
         <button type="button" id="btn-archive" disabled>Archive</button>
         <button type="button" id="btn-activate" disabled>Activate</button>
         <button type="button" id="btn-add-teacher" disabled>Add teacher…</button>
         <button type="button" id="btn-settings" class="secondary">Settings</button>
+        <span class="toolbar-spacer" aria-hidden="true"></span>
+        <button type="button" id="btn-exit" class="secondary">Exit</button>
       </header>
 
       <div class="table-wrap">

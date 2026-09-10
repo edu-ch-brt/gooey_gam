@@ -6,9 +6,10 @@ use courses::{ActionResult, Course, CourseTeachers};
 use config::Settings;
 
 #[tauri::command]
-fn list_courses(state: String) -> Result<Vec<Course>, String> {
+fn list_courses(state: String, show_all_active: Option<bool>) -> Result<Vec<Course>, String> {
     let path = gam::gam_path_from_settings();
-    gam::list_courses(&path, &state)
+    let show_all = show_all_active.unwrap_or(false);
+    gam::list_courses(&path, &state, show_all)
 }
 
 #[tauri::command]

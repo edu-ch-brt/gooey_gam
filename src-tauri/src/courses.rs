@@ -11,6 +11,9 @@ pub struct Course {
     pub enrollment_code: String,
     pub teachers: Vec<String>,
     pub state: String,
+    /// Classroom `updateTime` (ISO), best proxy for recent activity — not last access.
+    #[serde(default)]
+    pub update_time: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -226,12 +229,20 @@ fn course_from_object(value: Value) -> Result<Course, String> {
 
     let teachers = extract_teachers(obj.get("teachers"));
 
+    let update_time = obj
+        .get("updateTime")
+        .or_else(|| obj.get("update_time"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+
     Ok(Course {
         id,
         name,
         enrollment_code,
         teachers,
         state,
+        update_time,
     })
 }
 
@@ -358,5 +369,12 @@ mod tests {
         let courses = parse_courses_json(raw).unwrap();
         assert_eq!(courses.len(), 1);
         assert_eq!(courses[0].id, "1");
+    }
+
+    #[test]
+    fn parses_update_time() {
+        let raw = r#"[{ "id": "9", "name": "Z", "enrollmentCode": "c", "updateTime": "2025-01-02T03:04:05Z" }]"#;
+        let courses = parse_courses_json(raw).unwrap();
+        assert_eq!(courses[0].update_time, "2025-01-02T03:04:05Z");
     }
 }

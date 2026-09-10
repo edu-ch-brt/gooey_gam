@@ -225,3 +225,27 @@ dialog input {
   color: #94a3b8;
   font-style: italic;
 }
+
+.toolbar-spacer {
+  flex: 1 1 auto;
+  min-width: 8px;
+}
+
+.toolbar-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #334155;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.toolbar-check input {
+  margin: 0;
+}
+
+#btn-exit {
+  background: #fef2f2;
+  border-color: #fecaca;
+}

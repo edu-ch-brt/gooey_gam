@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
 type CourseState = "active" | "archived";
 
@@ -8,6 +9,8 @@ interface Course {
   enrollment_code: string;
   teachers: string[];
   state: string;
+  /** Classroom updateTime ISO string (proxy for recent activity, not last access). */
+  update_time?: string;
   /** Client-side: teachers fetched for this course (cached until Refresh). */
   teachersLoaded?: boolean;
 }
@@ -25,12 +28,15 @@ interface ActionResult {
 
 interface Settings {
   gam_path: string;
+  show_all_active_courses?: boolean;
 }
 
 const PAGE_SIZE = 15;
 let searchQuery = "";
 
 let viewState: CourseState = "active";
+/** Active view only: when false, load courses with updateTime in last 2 years. */
+let showAllActive = false;
 let courses: Course[] = [];
 let selected = new Set<string>();
 let loading = false;
@@ -53,6 +59,9 @@ const el = {
   btnActivate: () => document.getElementById("btn-activate") as HTMLButtonElement,
   btnAddTeacher: () => document.getElementById("btn-add-teacher") as HTMLButtonElement,
   btnSettings: () => document.getElementById("btn-settings") as HTMLButtonElement,
+  btnExit: () => document.getElementById("btn-exit") as HTMLButtonElement,
+  showAllActive: () => document.getElementById("show-all-active") as HTMLInputElement,
+  showAllWrap: () => document.getElementById("show-all-wrap") as HTMLElement,
   btnPrev: () => document.getElementById("btn-prev") as HTMLButtonElement,
   btnNext: () => document.getElementById("btn-next") as HTMLButtonElement,
   pageInfo: () => document.getElementById("page-info") as HTMLElement,
@@ -235,7 +244,10 @@ async function refresh() {
   updateActionButtons();
   setStatus(`Loading ${viewState} courses...`);
   try {
-    const listed = await invoke<Course[]>("list_courses", { state: viewState });
+    const listed = await invoke<Course[]>("list_courses", {
+      state: viewState,
+      showAllActive: viewState === "active" ? showAllActive : true,
+    });
     courses = listed.map((c) => ({
       ...c,
       teachers: [],
@@ -244,7 +256,11 @@ async function refresh() {
     const ids = new Set(courses.map((c) => c.id));
     selected = new Set([...selected].filter((id) => ids.has(id)));
     renderTable();
-    setStatus(`Loaded ${courses.length} ${viewState} course(s).`);
+    const filterNote =
+      viewState === "active" && !showAllActive
+        ? " (updated in last 2 years)"
+        : "";
+    setStatus(`Loaded ${courses.length} ${viewState} course(s)${filterNote}.`);
     await ensureTeachersForVisible();
   } catch (e) {
     courses = [];
@@ -260,6 +276,7 @@ function setView(state: CourseState) {
   viewState = state;
   el.btnActive().classList.toggle("active", state === "active");
   el.btnArchived().classList.toggle("active", state === "archived");
+  el.showAllWrap().classList.toggle("hidden", state !== "active");
   selected.clear();
   page = 0;
   void refresh();
@@ -418,6 +435,32 @@ async function openSettings() {
   el.settingsDialog().showModal();
 }
 
+async function persistShowAllPreference() {
+  try {
+    const settings = await invoke<Settings>("get_settings");
+    await invoke<Settings>("set_settings", {
+      settings: {
+        gam_path: settings.gam_path,
+        show_all_active_courses: showAllActive,
+      },
+    });
+  } catch (e) {
+    setStatus(String(e), true);
+  }
+}
+
+async function loadInitialPreferences() {
+  try {
+    const settings = await invoke<Settings>("get_settings");
+    showAllActive = Boolean(settings.show_all_active_courses);
+    el.showAllActive().checked = showAllActive;
+  } catch {
+    showAllActive = false;
+    el.showAllActive().checked = false;
+  }
+  el.showAllWrap().classList.toggle("hidden", viewState !== "active");
+}
+
 window.addEventListener("DOMContentLoaded", () => {
   el.btnActive().addEventListener("click", () => setView("active"));
   el.btnArchived().addEventListener("click", () => setView("archived"));
@@ -426,6 +469,16 @@ window.addEventListener("DOMContentLoaded", () => {
   el.btnActivate().addEventListener("click", () => void runActivate());
   el.btnAddTeacher().addEventListener("click", () => void runAddTeacher());
   el.btnSettings().addEventListener("click", () => void openSettings());
+  el.btnExit().addEventListener("click", () => {
+    void getCurrentWindow().close();
+  });
+  el.showAllActive().addEventListener("change", () => {
+    showAllActive = el.showAllActive().checked;
+    void (async () => {
+      await persistShowAllPreference();
+      await refresh();
+    })();
+  });
   const applySearch = () => {
     searchQuery = el.search().value.trim().toLowerCase();
     page = 0;
@@ -470,7 +523,10 @@ window.addEventListener("DOMContentLoaded", () => {
     ev.preventDefault();
     try {
       await invoke<Settings>("set_settings", {
-        settings: { gam_path: el.gamPath().value.trim() },
+        settings: {
+          gam_path: el.gamPath().value.trim(),
+          show_all_active_courses: showAllActive,
+        },
       });
       el.settingsDialog().close("save");
       setStatus("Settings saved.");
@@ -491,5 +547,8 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  void refresh();
+  void (async () => {
+    await loadInitialPreferences();
+    await refresh();
+  })();
 });

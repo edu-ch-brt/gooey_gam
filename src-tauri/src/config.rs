@@ -7,12 +7,17 @@ pub const DEFAULT_GAM_PATH: &str = r"C:\GAM7\gam.exe";
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
     pub gam_path: String,
+    /// When true, Active view lists every active course (no updateTime filter).
+    /// When false (default), only courses with updateTime in the last ~2 years.
+    #[serde(default)]
+    pub show_all_active_courses: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Self {
             gam_path: DEFAULT_GAM_PATH.to_string(),
+            show_all_active_courses: false,
         }
     }
 }
@@ -48,5 +53,3 @@ pub fn save_settings(settings: &Settings) -> Result<(), String> {
 pub fn resolve_gam_path(settings: &Settings) -> PathBuf {
     PathBuf::from(&settings.gam_path)
 }
-
-
