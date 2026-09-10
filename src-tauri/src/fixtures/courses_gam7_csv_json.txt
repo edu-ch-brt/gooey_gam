@@ -1,0 +1,3 @@
+id,JSON,JSON-teachers
+884230888941,"{""alternateLink"": ""https://classroom.google.com/c/ODg0MjMwODg4OTQx"", ""courseState"": ""ACTIVE"", ""enrollmentCode"": ""lspgv4uu"", ""id"": ""884230888941"", ""name"": ""IT BTEC AAQ 13IV-B"", ""teachers"": 1, ""teachers.0.emailAddress"": ""salalasundaram2@cheam.sutton.sch.uk"", ""teachers.0.id"": ""115087615017577088810"", ""teachers.0.name.fullName"": ""Sarvesh Alalasundaram""}","[{""profile"": {""id"": ""115087615017577088810"", ""name"": {""fullName"": ""Sarvesh Alalasundaram""}, ""emailAddress"": ""salalasundaram2@cheam.sutton.sch.uk""}}]"
+555,"{""id"": ""555"", ""name"": ""No Teachers Col"", ""enrollmentCode"": ""abc"", ""courseState"": ""ACTIVE"", ""teachers.0.emailAddress"": ""onlyflat@example.com""}",

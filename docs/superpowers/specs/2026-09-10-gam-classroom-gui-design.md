@@ -33,7 +33,7 @@ gam print courses states <active|archived> show teachers formatjson
 ```
 
 - Required fields per course: `id`, `name`, `enrollmentCode` (join code), teachers (emails and/or names from `show teachers`).
-- Prefer `formatjson`; fall back to CSV parsing if needed.
+- GAM 7 `formatjson` emits CSV with `id,JSON[,JSON-teachers]` columns; the app parses that (and also bare JSON arrays for fixtures).
 - **Search:** case-insensitive substring on class **name** only (v1).
 
 ### Actions
@@ -91,3 +91,4 @@ gam print courses states <active|archived> show teachers formatjson
 3. Multi-select + Archive or Activate updates via GAM and refreshes.
 4. Add teacher by email works for selected course(s).
 5. Bad gam path or command failure is understandable in the UI.
+
