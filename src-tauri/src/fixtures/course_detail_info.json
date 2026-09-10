@@ -1,0 +1,42 @@
+{
+  "id": "884230888941",
+  "name": "IT BTEC AAQ 13IV-B",
+  "description": "Year 13 IT pathway",
+  "descriptionHeading": "IT",
+  "courseState": "ACTIVE",
+  "enrollmentCode": "lspgv4uu",
+  "ownerEmail": "owner@example.com",
+  "ownerId": "111",
+  "teachers": [
+    {
+      "profile": {
+        "emailAddress": "owner@example.com",
+        "id": "111",
+        "name": { "fullName": "Owner Teacher", "givenName": "Owner", "familyName": "Teacher" }
+      }
+    },
+    {
+      "profile": {
+        "emailAddress": "coteacher@example.com",
+        "id": "222",
+        "name": { "fullName": "Co Teacher", "givenName": "Co", "familyName": "Teacher" }
+      }
+    }
+  ],
+  "students": [
+    {
+      "profile": {
+        "emailAddress": "student1@example.com",
+        "id": "333",
+        "name": { "fullName": "Student One", "givenName": "Student", "familyName": "One" }
+      }
+    },
+    {
+      "profile": {
+        "emailAddress": "student2@example.com",
+        "id": "444",
+        "name": { "fullName": "Student Two", "givenName": "Student", "familyName": "Two" }
+      }
+    }
+  ]
+}

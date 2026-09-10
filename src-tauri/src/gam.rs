@@ -1,5 +1,5 @@
 use crate::config::{self, Settings};
-use crate::courses::{parse_courses_json, ActionResult, Course, CourseTeachers};
+use crate::courses::{parse_course_detail_json, parse_courses_json, ActionResult, Course, CourseDetail, CourseTeachers};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -185,6 +185,95 @@ pub fn add_teacher(gam_path: &Path, id: &str, email: &str) -> Result<(), String>
     }
     let out = run_gam(gam_path, &["course", id, "add", "teachers", email])?;
     require_success(&out, &format!("Add teacher {email} to course {id}"))
+}
+
+pub fn get_course_detail(gam_path: &Path, id: &str) -> Result<CourseDetail, String> {
+    let id = id.trim();
+    if id.is_empty() {
+        return Err("Course id is empty".to_string());
+    }
+    let out = run_gam(
+        gam_path,
+        &["info", "course", id, "owneremail", "show", "all", "formatjson"],
+    )?;
+    require_success(&out, &format!("Get course detail for {id}"))?;
+    parse_course_detail_json(&out.stdout)
+}
+
+pub fn transfer_ownership(gam_path: &Path, id: &str, email: &str) -> Result<(), String> {
+    let id = id.trim();
+    let email = email.trim();
+    if id.is_empty() {
+        return Err("Course id is empty".to_string());
+    }
+    if email.is_empty() {
+        return Err("New owner email is empty".to_string());
+    }
+    let out = run_gam(gam_path, &["update", "course", id, "owner", email])?;
+    require_success(&out, &format!("Transfer ownership of course {id} to {email}"))
+}
+
+pub fn add_student(gam_path: &Path, id: &str, email: &str) -> Result<(), String> {
+    let email = email.trim();
+    if email.is_empty() {
+        return Err("Student email is empty".to_string());
+    }
+    let out = run_gam(gam_path, &["course", id, "add", "students", email])?;
+    require_success(&out, &format!("Add student {email} to course {id}"))
+}
+
+pub fn remove_teacher(gam_path: &Path, id: &str, email: &str) -> Result<(), String> {
+    let email = email.trim();
+    if email.is_empty() {
+        return Err("Teacher email is empty".to_string());
+    }
+    let out = run_gam(gam_path, &["course", id, "remove", "teachers", email])?;
+    require_success(&out, &format!("Remove teacher {email} from course {id}"))
+}
+
+pub fn remove_student(gam_path: &Path, id: &str, email: &str) -> Result<(), String> {
+    let email = email.trim();
+    if email.is_empty() {
+        return Err("Student email is empty".to_string());
+    }
+    let out = run_gam(gam_path, &["course", id, "remove", "students", email])?;
+    require_success(&out, &format!("Remove student {email} from course {id}"))
+}
+
+pub fn batch_remove_teachers(gam_path: &Path, id: &str, emails: &[String]) -> Vec<ActionResult> {
+    emails
+        .iter()
+        .map(|email| match remove_teacher(gam_path, id, email) {
+            Ok(()) => ActionResult {
+                id: email.clone(),
+                ok: true,
+                message: format!("Removed teacher {email}"),
+            },
+            Err(message) => ActionResult {
+                id: email.clone(),
+                ok: false,
+                message,
+            },
+        })
+        .collect()
+}
+
+pub fn batch_remove_students(gam_path: &Path, id: &str, emails: &[String]) -> Vec<ActionResult> {
+    emails
+        .iter()
+        .map(|email| match remove_student(gam_path, id, email) {
+            Ok(()) => ActionResult {
+                id: email.clone(),
+                ok: true,
+                message: format!("Removed student {email}"),
+            },
+            Err(message) => ActionResult {
+                id: email.clone(),
+                ok: false,
+                message,
+            },
+        })
+        .collect()
 }
 
 pub fn batch_set_state(gam_path: &Path, ids: &[String], state: &str) -> Vec<ActionResult> {

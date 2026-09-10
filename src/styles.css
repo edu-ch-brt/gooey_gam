@@ -249,3 +249,151 @@ dialog input {
   background: #fef2f2;
   border-color: #fecaca;
 }
+
+
+/* Class detail modal */
+.detail-dialog {
+  max-width: min(920px, calc(100% - 2rem));
+  width: min(920px, calc(100% - 2rem));
+  max-height: calc(100vh - 2rem);
+}
+
+.detail-dialog form {
+  max-height: calc(100vh - 2rem);
+  overflow: hidden;
+}
+
+.detail-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.detail-desc {
+  margin: 0.35rem 0 0;
+  white-space: pre-wrap;
+  color: #334155;
+}
+
+.detail-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  min-height: 220px;
+  max-height: min(55vh, 480px);
+  overflow: hidden;
+}
+
+@media (max-width: 720px) {
+  .detail-body {
+    grid-template-columns: 1fr;
+  }
+}
+
+.roster-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  overflow: hidden;
+}
+
+.roster-section h3 {
+  margin: 0;
+  padding: 8px 10px;
+  font-size: 0.95rem;
+  border-bottom: 1px solid #e2e8f0;
+  background: #fff;
+}
+
+.roster-section h3 .muted {
+  font-weight: 400;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.roster-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  overflow: auto;
+  flex: 1;
+}
+
+.roster-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+}
+
+.roster-list li:hover {
+  background: #eef2ff;
+}
+
+.roster-list li.owner {
+  background: #fff7ed;
+}
+
+.roster-list .roster-check {
+  margin-top: 2px;
+}
+
+.roster-list .roster-label {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.roster-list .roster-email {
+  word-break: break-all;
+}
+
+.roster-list .roster-name {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.roster-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #fdba74;
+  color: #7c2d12;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 0.35rem;
+}
+
+.course-name-link {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  color: #1d4ed8;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.course-name-link:hover {
+  color: #1e40af;
+}
+
+.course-name-link:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

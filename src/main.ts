@@ -20,6 +20,21 @@ interface CourseTeachers {
   teachers: string[];
 }
 
+interface Participant {
+  email: string;
+  name: string;
+}
+
+interface CourseDetail {
+  id: string;
+  name: string;
+  description: string;
+  owner_email: string;
+  owner_name: string;
+  teachers: Participant[];
+  students: Participant[];
+}
+
 interface ActionResult {
   id: string;
   ok: boolean;
@@ -45,6 +60,12 @@ let page = 0;
 /** Bumps when list/filter/page changes so in-flight teacher fetches can be ignored. */
 let teachersFetchGen = 0;
 
+let detailCourseId: string | null = null;
+let detail: CourseDetail | null = null;
+let detailLoading = false;
+let detailBusy = false;
+let selectedTeachers = new Set<string>();
+let selectedStudents = new Set<string>();
 const el = {
   body: () => document.getElementById("courses-body") as HTMLTableSectionElement,
   search: () => document.getElementById("search") as HTMLInputElement,
@@ -68,6 +89,8 @@ const el = {
   settingsDialog: () => document.getElementById("settings-dialog") as HTMLDialogElement,
   gamPath: () => document.getElementById("gam-path") as HTMLInputElement,
   teacherDialog: () => document.getElementById("teacher-dialog") as HTMLDialogElement,
+  teacherDialogTitle: () =>
+    document.getElementById("teacher-dialog-title") as HTMLElement,
   teacherEmail: () => document.getElementById("teacher-email") as HTMLInputElement,
   teacherHint: () => document.getElementById("teacher-hint") as HTMLElement,
   confirmDialog: () => document.getElementById("confirm-dialog") as HTMLDialogElement,
@@ -76,6 +99,24 @@ const el = {
   resultsDialog: () => document.getElementById("results-dialog") as HTMLDialogElement,
   resultsList: () => document.getElementById("results-list") as HTMLUListElement,
   statusbar: () => document.querySelector(".statusbar") as HTMLElement,
+  detailDialog: () => document.getElementById("detail-dialog") as HTMLDialogElement,
+  detailName: () => document.getElementById("detail-name") as HTMLElement,
+  detailDescription: () => document.getElementById("detail-description") as HTMLElement,
+  detailMeta: () => document.getElementById("detail-meta") as HTMLElement,
+  detailTeachers: () => document.getElementById("detail-teachers") as HTMLUListElement,
+  detailStudents: () => document.getElementById("detail-students") as HTMLUListElement,
+  detailStudentCount: () =>
+    document.getElementById("detail-student-count") as HTMLElement,
+  detailStatus: () => document.getElementById("detail-status") as HTMLElement,
+  detailTransfer: () => document.getElementById("detail-transfer") as HTMLButtonElement,
+  detailRemoveTeachers: () =>
+    document.getElementById("detail-remove-teachers") as HTMLButtonElement,
+  detailRemoveStudents: () =>
+    document.getElementById("detail-remove-students") as HTMLButtonElement,
+  detailAddTeacher: () =>
+    document.getElementById("detail-add-teacher") as HTMLButtonElement,
+  detailAddStudent: () =>
+    document.getElementById("detail-add-student") as HTMLButtonElement,
 };
 
 function filteredCourses(): Course[] {
@@ -107,6 +148,10 @@ function setStatus(text: string, isError = false) {
   el.statusbar().classList.toggle("error", isError);
 }
 
+function setDetailStatus(text: string) {
+  el.detailStatus().textContent = text;
+}
+
 function updateActionButtons() {
   const n = selected.size;
   el.btnArchive().disabled = loading || n === 0 || viewState !== "active";
@@ -125,6 +170,17 @@ function updateActionButtons() {
     filteredLen === 0
       ? "Page 0 / 0"
       : `Page ${page + 1} / ${pages} (${start}-${end} of ${filteredLen})`;
+}
+
+function updateDetailActionButtons() {
+  const busy = detailLoading || detailBusy;
+  const teacherCount = selectedTeachers.size;
+  const studentCount = selectedStudents.size;
+  el.detailTransfer().disabled = busy || teacherCount !== 1;
+  el.detailRemoveTeachers().disabled = busy || teacherCount < 1;
+  el.detailRemoveStudents().disabled = busy || studentCount < 1;
+  el.detailAddTeacher().disabled = busy || !detailCourseId;
+  el.detailAddStudent().disabled = busy || !detailCourseId;
 }
 
 function teachersLabel(course: Course): string {
@@ -157,21 +213,37 @@ function renderTable() {
     });
     tdCheck.appendChild(cb);
 
-    const cells = [
-      course.name,
-      teachersLabel(course),
-      course.id,
-      course.enrollment_code || "",
-    ];
-    tr.appendChild(tdCheck);
-    for (const text of cells) {
-      const td = document.createElement("td");
-      td.textContent = text;
-      if (text === "Loading..." || text === "...") {
-        td.classList.add("teachers-pending");
-      }
-      tr.appendChild(td);
+    const tdName = document.createElement("td");
+    const nameBtn = document.createElement("button");
+    nameBtn.type = "button";
+    nameBtn.className = "course-name-link";
+    nameBtn.textContent = course.name;
+    nameBtn.title = "Open class details";
+    nameBtn.disabled = loading;
+    nameBtn.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      void openCourseDetail(course.id);
+    });
+    tdName.appendChild(nameBtn);
+
+    const tdTeachers = document.createElement("td");
+    const teachersText = teachersLabel(course);
+    tdTeachers.textContent = teachersText;
+    if (teachersText === "Loading..." || teachersText === "...") {
+      tdTeachers.classList.add("teachers-pending");
     }
+
+    const tdId = document.createElement("td");
+    tdId.textContent = course.id;
+    const tdCode = document.createElement("td");
+    tdCode.textContent = course.enrollment_code || "";
+
+    tr.appendChild(tdCheck);
+    tr.appendChild(tdName);
+    tr.appendChild(tdTeachers);
+    tr.appendChild(tdId);
+    tr.appendChild(tdCode);
     tbody.appendChild(tr);
   }
 
@@ -234,6 +306,205 @@ async function ensureTeachersForVisible(forceIds?: string[]) {
       renderTable();
     }
   }
+}
+
+function invalidateCourseTeachers(id: string) {
+  const c = courses.find((x) => x.id === id);
+  if (c) {
+    c.teachersLoaded = false;
+    c.teachers = [];
+  }
+}
+
+
+function renderDetailRoster() {
+  const teachersUl = el.detailTeachers();
+  const studentsUl = el.detailStudents();
+  teachersUl.replaceChildren();
+  studentsUl.replaceChildren();
+
+  if (!detail) {
+    el.detailStudentCount().textContent = "";
+    updateDetailActionButtons();
+    return;
+  }
+
+  if (detail.owner_email) {
+    const li = document.createElement("li");
+    li.className = "owner";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.className = "roster-check";
+    cb.disabled = true;
+    cb.title = "Owner cannot be removed or selected as transfer target here";
+    const label = document.createElement("div");
+    label.className = "roster-label";
+    const emailSpan = document.createElement("span");
+    emailSpan.className = "roster-email";
+    emailSpan.textContent = detail.owner_email;
+    const badge = document.createElement("span");
+    badge.className = "roster-badge";
+    badge.textContent = "Owner";
+    emailSpan.appendChild(document.createTextNode(" "));
+    emailSpan.appendChild(badge);
+    label.appendChild(emailSpan);
+    if (detail.owner_name) {
+      const nameSpan = document.createElement("span");
+      nameSpan.className = "roster-name";
+      nameSpan.textContent = detail.owner_name;
+      label.appendChild(nameSpan);
+    }
+    li.appendChild(cb);
+    li.appendChild(label);
+    teachersUl.appendChild(li);
+  }
+
+  for (const t of detail.teachers) {
+    const li = document.createElement("li");
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.className = "roster-check";
+    cb.checked = selectedTeachers.has(t.email);
+    cb.disabled = detailBusy || detailLoading;
+    cb.addEventListener("change", () => {
+      if (cb.checked) selectedTeachers.add(t.email);
+      else selectedTeachers.delete(t.email);
+      updateDetailActionButtons();
+    });
+    const label = document.createElement("div");
+    label.className = "roster-label";
+    const emailSpan = document.createElement("span");
+    emailSpan.className = "roster-email";
+    emailSpan.textContent = t.email;
+    label.appendChild(emailSpan);
+    if (t.name) {
+      const nameSpan = document.createElement("span");
+      nameSpan.className = "roster-name";
+      nameSpan.textContent = t.name;
+      label.appendChild(nameSpan);
+    }
+    li.appendChild(cb);
+    li.appendChild(label);
+    teachersUl.appendChild(li);
+  }
+
+  if (!detail.owner_email && detail.teachers.length === 0) {
+    const li = document.createElement("li");
+    li.textContent = "No teachers listed.";
+    teachersUl.appendChild(li);
+  }
+
+  el.detailStudentCount().textContent = `(${detail.students.length})`;
+  if (detail.students.length === 0) {
+    const li = document.createElement("li");
+    li.textContent = "No students listed.";
+    studentsUl.appendChild(li);
+  } else {
+    for (const s of detail.students) {
+      const li = document.createElement("li");
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.className = "roster-check";
+      cb.checked = selectedStudents.has(s.email);
+      cb.disabled = detailBusy || detailLoading;
+      cb.addEventListener("change", () => {
+        if (cb.checked) selectedStudents.add(s.email);
+        else selectedStudents.delete(s.email);
+        updateDetailActionButtons();
+      });
+      const label = document.createElement("div");
+      label.className = "roster-label";
+      const emailSpan = document.createElement("span");
+      emailSpan.className = "roster-email";
+      emailSpan.textContent = s.email;
+      label.appendChild(emailSpan);
+      if (s.name) {
+        const nameSpan = document.createElement("span");
+        nameSpan.className = "roster-name";
+        nameSpan.textContent = s.name;
+        label.appendChild(nameSpan);
+      }
+      li.appendChild(cb);
+      li.appendChild(label);
+      studentsUl.appendChild(li);
+    }
+  }
+
+  updateDetailActionButtons();
+}
+
+function applyDetailToHeader(d: CourseDetail) {
+  el.detailName().textContent = d.name || "(unnamed)";
+  el.detailDescription().textContent = d.description?.trim()
+    ? d.description
+    : "No description.";
+  el.detailMeta().textContent = `Class ID: ${d.id}`;
+}
+
+async function loadCourseDetail(id: string, keepSelections = false) {
+  detailLoading = true;
+  updateDetailActionButtons();
+  setDetailStatus("Loading class details...");
+  try {
+    const d = await invoke<CourseDetail>("get_course_detail", { id });
+    detail = d;
+    detailCourseId = d.id;
+    if (!keepSelections) {
+      selectedTeachers.clear();
+      selectedStudents.clear();
+    } else {
+      const teacherEmails = new Set(d.teachers.map((t) => t.email));
+      const studentEmails = new Set(d.students.map((s) => s.email));
+      selectedTeachers = new Set(
+        [...selectedTeachers].filter((e) => teacherEmails.has(e))
+      );
+      selectedStudents = new Set(
+        [...selectedStudents].filter((e) => studentEmails.has(e))
+      );
+    }
+    applyDetailToHeader(d);
+    renderDetailRoster();
+    setDetailStatus(
+      `Loaded ${d.teachers.length} co-teacher(s), ${d.students.length} student(s).`
+    );
+  } catch (e) {
+    setDetailStatus(String(e));
+    throw e;
+  } finally {
+    detailLoading = false;
+    updateDetailActionButtons();
+  }
+}
+
+async function openCourseDetail(id: string) {
+  detailCourseId = id;
+  detail = null;
+  selectedTeachers.clear();
+  selectedStudents.clear();
+  const fromList = courses.find((c) => c.id === id);
+  el.detailName().textContent = fromList?.name || "Class";
+  el.detailDescription().textContent = "Loading...";
+  el.detailMeta().textContent = `Class ID: ${id}`;
+  el.detailTeachers().replaceChildren();
+  el.detailStudents().replaceChildren();
+  el.detailStudentCount().textContent = "";
+  setDetailStatus("");
+  updateDetailActionButtons();
+  el.detailDialog().showModal();
+  try {
+    await loadCourseDetail(id);
+  } catch (e) {
+    setStatus(String(e), true);
+  }
+}
+
+async function refreshDetailAndMainTeachers() {
+  if (!detailCourseId) return;
+  const id = detailCourseId;
+  await loadCourseDetail(id);
+  invalidateCourseTeachers(id);
+  renderTable();
+  await ensureTeachersForVisible([id]);
 }
 
 async function refresh() {
@@ -364,10 +635,23 @@ async function runActivate() {
   }
 }
 
-function askTeacherEmail(): Promise<string | null> {
+function askEmail(mode: "bulk-teacher" | "detail-teacher" | "detail-student"): Promise<string | null> {
   return new Promise((resolve) => {
-    const ids = [...selected];
-    el.teacherHint().textContent = `Will add teacher to ${ids.length} course(s).`;
+    if (mode === "bulk-teacher") {
+      const ids = [...selected];
+      el.teacherDialogTitle().textContent = "Add teacher";
+      el.teacherHint().textContent = `Will add teacher to ${ids.length} course(s).`;
+    } else if (mode === "detail-teacher") {
+      el.teacherDialogTitle().textContent = "Add teacher";
+      el.teacherHint().textContent = detail
+        ? `Add teacher to "${detail.name}".`
+        : "Add teacher to this class.";
+    } else {
+      el.teacherDialogTitle().textContent = "Add student";
+      el.teacherHint().textContent = detail
+        ? `Add student to "${detail.name}".`
+        : "Add student to this class.";
+    }
     el.teacherEmail().value = "";
     const dialog = el.teacherDialog();
     const onClose = () => {
@@ -385,7 +669,7 @@ function askTeacherEmail(): Promise<string | null> {
 }
 
 async function runAddTeacher() {
-  const email = await askTeacherEmail();
+  const email = await askEmail("bulk-teacher");
   if (!email) return;
   if (!email.includes("@")) {
     setStatus("Enter a valid email address.", true);
@@ -406,13 +690,8 @@ async function runAddTeacher() {
   try {
     const results = await invoke<ActionResult[]>("add_teacher", { ids, email });
     showResults(results);
-    // Invalidate teacher cache for affected courses and refetch those ids.
     for (const id of ids) {
-      const c = courses.find((x) => x.id === id);
-      if (c) {
-        c.teachersLoaded = false;
-        c.teachers = [];
-      }
+      invalidateCourseTeachers(id);
     }
     renderTable();
     await ensureTeachersForVisible(ids);
@@ -422,6 +701,179 @@ async function runAddTeacher() {
   } finally {
     loading = false;
     updateActionButtons();
+  }
+}
+
+async function runDetailTransfer() {
+  if (!detailCourseId || selectedTeachers.size !== 1) return;
+  const email = [...selectedTeachers][0];
+  if (
+    !(await confirmAction(
+      "Transfer ownership",
+      `Transfer ownership of this class to ${email}? The current owner will remain as a teacher.`
+    ))
+  ) {
+    return;
+  }
+  detailBusy = true;
+  updateDetailActionButtons();
+  setDetailStatus(`Transferring ownership to ${email}...`);
+  try {
+    const result = await invoke<ActionResult>("transfer_ownership", {
+      id: detailCourseId,
+      email,
+    });
+    if (!result.ok) {
+      setDetailStatus(result.message);
+      setStatus(result.message, true);
+      return;
+    }
+    setStatus(result.message);
+    await refreshDetailAndMainTeachers();
+  } catch (e) {
+    setDetailStatus(String(e));
+    setStatus(String(e), true);
+  } finally {
+    detailBusy = false;
+    updateDetailActionButtons();
+  }
+}
+
+async function runDetailRemoveTeachers() {
+  if (!detailCourseId || selectedTeachers.size === 0) return;
+  const emails = [...selectedTeachers];
+  if (
+    !(await confirmAction(
+      "Remove teachers",
+      `Remove ${emails.length} teacher(s) from this class?\n\n${emails.join("\n")}`
+    ))
+  ) {
+    return;
+  }
+  detailBusy = true;
+  updateDetailActionButtons();
+  setDetailStatus(`Removing ${emails.length} teacher(s)...`);
+  try {
+    const results = await invoke<ActionResult[]>("remove_teachers", {
+      id: detailCourseId,
+      emails,
+    });
+    showResults(results);
+    await refreshDetailAndMainTeachers();
+  } catch (e) {
+    setDetailStatus(String(e));
+    setStatus(String(e), true);
+  } finally {
+    detailBusy = false;
+    updateDetailActionButtons();
+  }
+}
+
+async function runDetailRemoveStudents() {
+  if (!detailCourseId || selectedStudents.size === 0) return;
+  const emails = [...selectedStudents];
+  if (
+    !(await confirmAction(
+      "Remove students",
+      `Remove ${emails.length} student(s) from this class?\n\n${emails.join("\n")}`
+    ))
+  ) {
+    return;
+  }
+  detailBusy = true;
+  updateDetailActionButtons();
+  setDetailStatus(`Removing ${emails.length} student(s)...`);
+  try {
+    const results = await invoke<ActionResult[]>("remove_students", {
+      id: detailCourseId,
+      emails,
+    });
+    showResults(results);
+    await refreshDetailAndMainTeachers();
+  } catch (e) {
+    setDetailStatus(String(e));
+    setStatus(String(e), true);
+  } finally {
+    detailBusy = false;
+    updateDetailActionButtons();
+  }
+}
+
+async function runDetailAddTeacher() {
+  if (!detailCourseId) return;
+  const email = await askEmail("detail-teacher");
+  if (!email) return;
+  if (!email.includes("@")) {
+    setDetailStatus("Enter a valid email address.");
+    return;
+  }
+  if (
+    !(await confirmAction(
+      "Add teacher",
+      `Add ${email} as teacher to this class?`
+    ))
+  ) {
+    return;
+  }
+  detailBusy = true;
+  updateDetailActionButtons();
+  setDetailStatus(`Adding teacher ${email}...`);
+  try {
+    const result = await invoke<ActionResult>("add_teacher_to_course", {
+      id: detailCourseId,
+      email,
+    });
+    if (!result.ok) {
+      setDetailStatus(result.message);
+      setStatus(result.message, true);
+      return;
+    }
+    await refreshDetailAndMainTeachers();
+  } catch (e) {
+    setDetailStatus(String(e));
+    setStatus(String(e), true);
+  } finally {
+    detailBusy = false;
+    updateDetailActionButtons();
+  }
+}
+
+async function runDetailAddStudent() {
+  if (!detailCourseId) return;
+  const email = await askEmail("detail-student");
+  if (!email) return;
+  if (!email.includes("@")) {
+    setDetailStatus("Enter a valid email address.");
+    return;
+  }
+  if (
+    !(await confirmAction(
+      "Add student",
+      `Add ${email} as student to this class?`
+    ))
+  ) {
+    return;
+  }
+  detailBusy = true;
+  updateDetailActionButtons();
+  setDetailStatus(`Adding student ${email}...`);
+  try {
+    const result = await invoke<ActionResult>("add_student", {
+      id: detailCourseId,
+      email,
+    });
+    if (!result.ok) {
+      setDetailStatus(result.message);
+      setStatus(result.message, true);
+      return;
+    }
+    await refreshDetailAndMainTeachers();
+  } catch (e) {
+    setDetailStatus(String(e));
+    setStatus(String(e), true);
+  } finally {
+    detailBusy = false;
+    updateDetailActionButtons();
   }
 }
 
@@ -516,6 +968,20 @@ window.addEventListener("DOMContentLoaded", () => {
     }
     renderTable();
   });
+
+  el.detailTransfer().addEventListener("click", () => void runDetailTransfer());
+  el.detailRemoveTeachers().addEventListener("click", () =>
+    void runDetailRemoveTeachers()
+  );
+  el.detailRemoveStudents().addEventListener("click", () =>
+    void runDetailRemoveStudents()
+  );
+  el.detailAddTeacher().addEventListener("click", () =>
+    void runDetailAddTeacher()
+  );
+  el.detailAddStudent().addEventListener("click", () =>
+    void runDetailAddStudent()
+  );
 
   document.getElementById("settings-form")?.addEventListener("submit", async (ev) => {
     const submitter = (ev as SubmitEvent).submitter as HTMLButtonElement | null;

@@ -73,10 +73,10 @@
 
     <dialog id="teacher-dialog">
       <form method="dialog" id="teacher-form">
-        <h2>Add teacher</h2>
+        <h2 id="teacher-dialog-title">Add teacher</h2>
         <label>
           Google email
-          <input type="email" id="teacher-email" placeholder="teacher@school.edu" required />
+          <input type="email" id="teacher-email" placeholder="name@school.edu" required />
         </label>
         <p class="hint" id="teacher-hint"></p>
         <div class="dialog-actions">
@@ -106,5 +106,39 @@
         </div>
       </form>
     </dialog>
+
+    <dialog id="detail-dialog" class="detail-dialog">
+      <form method="dialog" id="detail-form">
+        <div class="detail-header">
+          <h2 id="detail-name">Class</h2>
+          <p id="detail-description" class="detail-desc"></p>
+          <p id="detail-meta" class="hint"></p>
+        </div>
+
+        <div class="detail-body">
+          <section class="roster-section">
+            <h3>Teachers</h3>
+            <ul id="detail-teachers" class="roster-list"></ul>
+          </section>
+          <section class="roster-section">
+            <h3>Students <span id="detail-student-count" class="muted"></span></h3>
+            <ul id="detail-students" class="roster-list roster-students"></ul>
+          </section>
+        </div>
+
+        <p id="detail-status" class="hint" aria-live="polite"></p>
+
+        <div class="detail-actions">
+          <button type="button" id="detail-transfer" disabled>Transfer ownership</button>
+          <button type="button" id="detail-remove-teachers" disabled>Remove teachers</button>
+          <button type="button" id="detail-remove-students" disabled>Remove students</button>
+          <button type="button" id="detail-add-teacher">Add teacher</button>
+          <button type="button" id="detail-add-student">Add student</button>
+          <span class="toolbar-spacer" aria-hidden="true"></span>
+          <button type="submit" value="close" class="secondary" formnovalidate>Close</button>
+        </div>
+      </form>
+    </dialog>
+
   </body>
 </html>

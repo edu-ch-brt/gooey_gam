@@ -291,6 +291,208 @@ fn teacher_label(v: &Value) -> Option<String> {
     None
 }
 
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Participant {
+    pub email: String,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CourseDetail {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub owner_email: String,
+    pub owner_name: String,
+    /// Non-owner teachers (owner is separate).
+    pub teachers: Vec<Participant>,
+    pub students: Vec<Participant>,
+}
+
+/// Parse `gam info course <id> owneremail show all formatjson` stdout.
+pub fn parse_course_detail_json(raw: &str) -> Result<CourseDetail, String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err("Empty gam course detail output".to_string());
+    }
+    let payload = extract_payload(trimmed);
+    let start = payload
+        .find('{')
+        .ok_or_else(|| "No JSON object found in gam course detail output".to_string())?;
+    let json_part = &payload[start..];
+    let value: Value = serde_json::from_str(json_part)
+        .map_err(|e| format!("Failed to parse course detail JSON: {e}"))?;
+    course_detail_from_value(value)
+}
+
+fn course_detail_from_value(value: Value) -> Result<CourseDetail, String> {
+    let obj = value
+        .as_object()
+        .ok_or_else(|| "Course detail is not a JSON object".to_string())?;
+
+    let id = obj
+        .get("id")
+        .or_else(|| obj.get("courseId"))
+        .and_then(|v| match v {
+            Value::String(s) => Some(s.clone()),
+            Value::Number(n) => Some(n.to_string()),
+            _ => None,
+        })
+        .unwrap_or_default();
+    if id.is_empty() {
+        return Err("Course detail missing id".to_string());
+    }
+
+    let name = obj
+        .get("name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("(unnamed)")
+        .to_string();
+
+    let description = obj
+        .get("description")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .or_else(|| {
+            obj.get("descriptionHeading")
+                .or_else(|| obj.get("heading"))
+                .and_then(|v| v.as_str())
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+        })
+        .unwrap_or("")
+        .to_string();
+
+    let owner_email = obj
+        .get("ownerEmail")
+        .or_else(|| obj.get("owner_email"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+
+    let owner_name = find_owner_name(obj, &owner_email);
+
+    let all_teachers = extract_participants(obj.get("teachers"));
+    let students = extract_participants(obj.get("students"));
+
+    let owner_email_lc = owner_email.to_ascii_lowercase();
+    let teachers: Vec<Participant> = all_teachers
+        .into_iter()
+        .filter(|p| p.email.to_ascii_lowercase() != owner_email_lc || owner_email_lc.is_empty())
+        .collect();
+
+    Ok(CourseDetail {
+        id,
+        name,
+        description,
+        owner_email,
+        owner_name,
+        teachers,
+        students,
+    })
+}
+
+fn find_owner_name(
+    obj: &serde_json::Map<String, Value>,
+    owner_email: &str,
+) -> String {
+    if let Some(name) = obj.get("ownerName").and_then(|v| v.as_str()) {
+        let name = name.trim();
+        if !name.is_empty() {
+            return name.to_string();
+        }
+    }
+    let owner_lc = owner_email.to_ascii_lowercase();
+    if owner_lc.is_empty() {
+        return String::new();
+    }
+    for p in extract_participants(obj.get("teachers")) {
+        if p.email.to_ascii_lowercase() == owner_lc {
+            return p.name;
+        }
+    }
+    String::new()
+}
+
+fn extract_participants(value: Option<&Value>) -> Vec<Participant> {
+    match value {
+        None | Some(Value::Null) => Vec::new(),
+        Some(Value::Number(_)) => Vec::new(),
+        Some(Value::String(s)) => s
+            .split(',')
+            .map(|p| p.trim())
+            .filter(|p| !p.is_empty())
+            .map(|email| Participant {
+                email: email.to_string(),
+                name: String::new(),
+            })
+            .collect(),
+        Some(Value::Array(items)) => items.iter().filter_map(participant_from_value).collect(),
+        Some(_) => Vec::new(),
+    }
+}
+
+fn participant_from_value(v: &Value) -> Option<Participant> {
+    if let Some(s) = v.as_str() {
+        let email = s.trim();
+        if email.is_empty() {
+            return None;
+        }
+        return Some(Participant {
+            email: email.to_string(),
+            name: String::new(),
+        });
+    }
+    let obj = v.as_object()?;
+
+    let (email, name) = if let Some(profile) = obj.get("profile").and_then(|p| p.as_object()) {
+        let email = profile
+            .get("emailAddress")
+            .or_else(|| profile.get("email"))
+            .and_then(|e| e.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        let name = profile
+            .get("name")
+            .and_then(|n| n.get("fullName"))
+            .and_then(|n| n.as_str())
+            .or_else(|| profile.get("fullName").and_then(|n| n.as_str()))
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        (email, name)
+    } else {
+        let email = obj
+            .get("emailAddress")
+            .or_else(|| obj.get("email"))
+            .and_then(|e| e.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        let name = obj
+            .get("fullName")
+            .and_then(|e| e.as_str())
+            .or_else(|| {
+                obj.get("name")
+                    .and_then(|n| n.get("fullName"))
+                    .and_then(|n| n.as_str())
+            })
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        (email, name)
+    };
+
+    if email.is_empty() {
+        return None;
+    }
+    Some(Participant { email, name })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -377,4 +579,45 @@ mod tests {
         let courses = parse_courses_json(raw).unwrap();
         assert_eq!(courses[0].update_time, "2025-01-02T03:04:05Z");
     }
+
+    #[test]
+    fn parses_course_detail_fixture() {
+        let raw = include_str!("fixtures/course_detail_info.json");
+        let detail = parse_course_detail_json(raw).expect("parse detail");
+        assert_eq!(detail.id, "884230888941");
+        assert_eq!(detail.name, "IT BTEC AAQ 13IV-B");
+        assert_eq!(detail.description, "Year 13 IT pathway");
+        assert_eq!(detail.owner_email, "owner@example.com");
+        assert_eq!(detail.owner_name, "Owner Teacher");
+        assert_eq!(detail.teachers.len(), 1);
+        assert_eq!(detail.teachers[0].email, "coteacher@example.com");
+        assert_eq!(detail.teachers[0].name, "Co Teacher");
+        assert_eq!(detail.students.len(), 2);
+        assert_eq!(detail.students[0].email, "student1@example.com");
+        assert_eq!(detail.students[1].email, "student2@example.com");
+        // Owner must not appear in removable teachers list.
+        assert!(detail
+            .teachers
+            .iter()
+            .all(|t| t.email.to_ascii_lowercase() != "owner@example.com"));
+    }
+
+    #[test]
+    fn parses_course_detail_with_noise_and_heading_fallback() {
+        let raw = r#"Getting Course
+{
+  "id": "42",
+  "name": "History",
+  "descriptionHeading": "Heading only",
+  "ownerEmail": "a@example.com",
+  "teachers": [{"profile": {"emailAddress": "a@example.com", "name": {"fullName": "A"}}}],
+  "students": []
+}"#;
+        let detail = parse_course_detail_json(raw).unwrap();
+        assert_eq!(detail.id, "42");
+        assert_eq!(detail.description, "Heading only");
+        assert!(detail.teachers.is_empty());
+        assert_eq!(detail.owner_name, "A");
+    }
+
 }
