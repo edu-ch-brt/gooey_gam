@@ -365,7 +365,7 @@ function renderDetailRoster() {
     cb.type = "checkbox";
     cb.className = "roster-check";
     cb.checked = selectedTeachers.has(t.email);
-    cb.disabled = detailBusy || detailLoading;
+    cb.disabled = detailBusy;
     cb.addEventListener("change", () => {
       if (cb.checked) selectedTeachers.add(t.email);
       else selectedTeachers.delete(t.email);
@@ -406,7 +406,7 @@ function renderDetailRoster() {
       cb.type = "checkbox";
       cb.className = "roster-check";
       cb.checked = selectedStudents.has(s.email);
-      cb.disabled = detailBusy || detailLoading;
+      cb.disabled = detailBusy;
       cb.addEventListener("change", () => {
         if (cb.checked) selectedStudents.add(s.email);
         else selectedStudents.delete(s.email);
@@ -463,6 +463,7 @@ async function loadCourseDetail(id: string, keepSelections = false) {
       );
     }
     applyDetailToHeader(d);
+    detailLoading = false;
     renderDetailRoster();
     setDetailStatus(
       `Loaded ${d.teachers.length} co-teacher(s), ${d.students.length} student(s).`
@@ -472,7 +473,9 @@ async function loadCourseDetail(id: string, keepSelections = false) {
     throw e;
   } finally {
     detailLoading = false;
-    updateDetailActionButtons();
+    // Re-render so checkboxes aren't left disabled if roster was painted while loading.
+    if (detail) renderDetailRoster();
+    else updateDetailActionButtons();
   }
 }
 
