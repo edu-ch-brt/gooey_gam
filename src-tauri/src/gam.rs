@@ -1,7 +1,12 @@
 use crate::config::{self, Settings};
-use crate::courses::{parse_course_detail_json, parse_courses_json, ActionResult, Course, CourseDetail, CourseTeachers};
+use crate::courses::{
+    parse_course_detail_json, parse_courses_json, ActionResult, Course, CourseDetail,
+    CourseTeachers,
+};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::thread;
+use std::time::Duration;
 
 #[derive(Debug)]
 pub struct GamOutput {
@@ -10,7 +15,36 @@ pub struct GamOutput {
     pub status: i32,
 }
 
-pub fn run_gam(gam_path: &Path, args: &[&str]) -> Result<GamOutput, String> {
+const MAX_TRANSIENT_RETRIES: u32 = 3;
+
+fn is_transient_gam_failure(out: &GamOutput) -> bool {
+    if out.status == 0 {
+        return false;
+    }
+    let blob = format!("{}\n{}", out.stderr, out.stdout).to_ascii_lowercase();
+    const NEEDLES: &[&str] = &[
+        "ssl",
+        "unexpected_eof",
+        "eof occurred in violation of protocol",
+        "connection reset",
+        "connection aborted",
+        "temporarily unavailable",
+        "timed out",
+        "timeout",
+        "broken pipe",
+        "remote end closed",
+        "connection refused",
+        "network is unreachable",
+        "name resolution",
+        "temporary failure",
+        "503",
+        "502",
+        "429",
+    ];
+    NEEDLES.iter().any(|n| blob.contains(n))
+}
+
+fn run_gam_once(gam_path: &Path, args: &[&str]) -> Result<GamOutput, String> {
     if !gam_path.is_file() {
         return Err(format!(
             "gam executable not found at {}. Open Settings and set the correct path.",
@@ -42,6 +76,21 @@ pub fn run_gam(gam_path: &Path, args: &[&str]) -> Result<GamOutput, String> {
     })
 }
 
+/// Run gam, retrying a few times on transient SSL/network errors (common with Google APIs).
+pub fn run_gam(gam_path: &Path, args: &[&str]) -> Result<GamOutput, String> {
+    let mut attempt = 0u32;
+    loop {
+        attempt += 1;
+        let out = run_gam_once(gam_path, args)?;
+        if out.status == 0 || !is_transient_gam_failure(&out) || attempt > MAX_TRANSIENT_RETRIES {
+            return Ok(out);
+        }
+        // 1s, 2s, 4s
+        let delay_ms = 1000u64 << (attempt - 1).min(2);
+        thread::sleep(Duration::from_millis(delay_ms));
+    }
+}
+
 fn require_success(out: &GamOutput, context: &str) -> Result<(), String> {
     if out.status == 0 {
         return Ok(());
@@ -70,7 +119,7 @@ pub fn two_years_ago_ymd() -> String {
 /// For Active courses, unless `show_all_active` is true, applies GAM
 /// `timefilter updatetime start <today-2y>` so the UI list is smaller.
 /// Note: GAM may still enumerate all matching-state courses server-side then
-/// filter locally - the filter mainly shrinks the list returned to the UI.
+/// filter locally — the filter mainly shrinks the list returned to the UI.
 pub fn list_courses(
     gam_path: &Path,
     state: &str,
@@ -123,7 +172,6 @@ pub fn fetch_course_teachers(
     match fetch_teachers_batch(gam_path, &unique) {
         Ok(rows) => Ok(rows),
         Err(batch_err) => {
-            // Fall back to per-course so a single bad id does not block the page.
             let mut rows = Vec::new();
             let mut errors = Vec::new();
             for id in &unique {
@@ -210,7 +258,10 @@ pub fn transfer_ownership(gam_path: &Path, id: &str, email: &str) -> Result<(), 
         return Err("New owner email is empty".to_string());
     }
     let out = run_gam(gam_path, &["update", "course", id, "owner", email])?;
-    require_success(&out, &format!("Transfer ownership of course {id} to {email}"))
+    require_success(
+        &out,
+        &format!("Transfer ownership of course {id} to {email}"),
+    )
 }
 
 pub fn add_student(gam_path: &Path, id: &str, email: &str) -> Result<(), String> {
@@ -332,7 +383,7 @@ pub fn current_settings() -> Settings {
 
 #[cfg(test)]
 mod tests {
-    use super::two_years_ago_ymd;
+    use super::{is_transient_gam_failure, two_years_ago_ymd, GamOutput};
 
     #[test]
     fn two_years_ago_ymd_format() {
@@ -342,5 +393,25 @@ mod tests {
         assert_eq!(&s[7..8], "-");
         let y: i32 = s[0..4].parse().unwrap();
         assert!(y >= 2020);
+    }
+
+    #[test]
+    fn detects_ssl_eof_as_transient() {
+        let out = GamOutput {
+            stdout: String::new(),
+            stderr: "ERROR: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1081)".into(),
+            status: 3,
+        };
+        assert!(is_transient_gam_failure(&out));
+    }
+
+    #[test]
+    fn non_ssl_error_not_transient() {
+        let out = GamOutput {
+            stdout: String::new(),
+            stderr: "ERROR: Course Does Not Exist".into(),
+            status: 56,
+        };
+        assert!(!is_transient_gam_failure(&out));
     }
 }
